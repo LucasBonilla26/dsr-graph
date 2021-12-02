@@ -105,11 +105,8 @@ void SpecificWorker::initialize(int period)
         graph_viewer = std::make_unique<DSR::DSRViewer>(this, G, current_opts, main);
         setWindowTitle(QString::fromStdString(agent_name + "-") + QString::number(agent_id));
 
-        // Inner Api
+        //Inner Api
         inner_eigen = G->get_inner_eigen_api();
-
-        // self agent api
-        agent_info_api = std::make_unique<DSR::AgentInfoAPI>(G.get());
 
         // get camera_api
         if (auto cam_node = G->get_node(viriato_head_camera_name); cam_node.has_value())
@@ -205,7 +202,7 @@ void SpecificWorker::compute()
         //qInfo() << __FUNCTION__ << "real: " << a.size() << " synth:" << b.size();
     }
     //std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::milliseconds>(myclock::now() - begin).count() << "[ms]" << std::endl;
-    fps.print("FPS: ", [this](auto x){ graph_viewer->set_external_hz(x);});
+    //fps.print("FPS: ", [this](auto x){ graph_viewer->set_external_hz(x);});
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void SpecificWorker::compute_attention_list(const std::vector<Box> &synth_objects)
@@ -246,16 +243,16 @@ std::tuple<SpecificWorker::Boxes, SpecificWorker::Boxes> SpecificWorker::match_l
             //std::cout << "\t " << b_real.top << " " << b_real.left << " " << b_real.right << " " << b_real.bot << std::endl;
             if (not b_synth.match and not b_real.match and both_boxes_match(b_synth, b_real))
             {
-                //std::cout << __FUNCTION__ << " success match between " << b_synth.name << " and " << b_real.name << std::endl;
-                b_synth.match = true; b_real.match = true;
+                std::cout << __FUNCTION__ << " success match between " << b_synth.name << " and " << b_real.name << std::endl;
+                b_synth.match = true; b_real.match = true;//???
                 auto synth_node = G->get_node(b_synth.name);
-                auto parent = G->get_parent_node(synth_node.value());
+                auto parent = G->get_parent_node(synth_node.value()); //world?
                 auto edge = rt_api->get_edge_RT(parent.value(), synth_node->id()).value();
                 G->add_or_modify_attrib_local<unseen_time_att>(synth_node.value(), 0);  // reset unseen counter
                 G->modify_attrib_local<rt_translation_att>(edge, std::vector<float>{b_real.Tx, b_real.Ty, b_real.Tz});
                 // const auto &[width, depth, height] = estimate_object_size_through_projection_optimization(b_synth, b_real);
                 G->insert_or_assign_edge(edge);
-                G->update_node(synth_node.value());
+                G->update_node(synth_node.value());    // COMPROBAR SI SE PUEDE QUITAR ESTO
                 //b_real.print("Real Box");
                 //b_synth.print("Synth Box");
                 //qInfo() << __FUNCTION__ << " Matched objects:" << ++count;
@@ -301,7 +298,7 @@ std::tuple<SpecificWorker::Boxes, SpecificWorker::Boxes>
         // before actually creating the object, it has to be seen a minimun number of times at the same place
         if(real_object_is_stable(b_real, room_polygon, timestamp))  // insert
         {
-            object_node = create_node_with_type(b_real.type, b_real.name);
+            object_node = create_node_with_type(b_real.type, b_real.name); //b_real.name
             auto size = known_object_types.at(b_real.type);
 
             // decide here who is going to be the parent
@@ -352,10 +349,16 @@ std::tuple<SpecificWorker::Boxes, SpecificWorker::Boxes>
     {
         if (not b_synth.match)   // objects in G not corroborated
         {
+            qInfo() << " dont se object";
+
             if (auto object_node = G->get_node(b_synth.name); object_node.has_value())
             {
+                qInfo() << " NODE HAS VALUE ";
+
                 if (auto unseen_time = G->get_attrib_by_name<unseen_time_att>(object_node.value()); unseen_time.has_value())
                 {
+                    qInfo() << __FUNCTION__ <<  unseen_time.value();
+
                     if (unseen_time.value() > CONSTANTS.max_allowed_unseen_ticks)
                     {
                         G->delete_node(object_node->name());
